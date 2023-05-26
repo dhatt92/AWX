@@ -1,0 +1,43 @@
+name: Upload to S3
+
+on:
+  push:
+    branches:
+      - master # or the branch you want to trigger this workflow
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2 # Update this if your S3 bucket is in a different region
+
+    - name: Assume AWS Role
+      run: |
+        ROLE_SESSION_NAME=$(date +%s)
+        RESPONSE=$(aws sts assume-role --role-arn arn:aws:iam::123456789012:role/YourRoleName --role-session-name $ROLE_SESSION_NAME)
+        AWS_ACCESS_KEY_ID=$(echo $RESPONSE | jq -r '.Credentials.AccessKeyId')
+        AWS_SECRET_ACCESS_KEY=$(echo $RESPONSE | jq -r '.Credentials.SecretAccessKey')
+        AWS_SESSION_TOKEN=$(echo $RESPONSE | jq -r '.Credentials.SessionToken')
+        AWS_SESSION_EXPIRATION=$(echo $RESPONSE | jq -r '.Credentials.Expiration')
+        echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+        echo "AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN" >> $GITHUB_ENV
+        echo "AWS_SESSION_EXPIRATION=$AWS_SESSION_EXPIRATION" >> $GITHUB_ENV
+        
+    - name: Install AWS CLI
+      run: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+
+    - name: Sync files to S3
+      run: |
+        aws s3 sync . s3://your-bucket-name # Replace this with your bucket name
